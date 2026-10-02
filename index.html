@@ -3,79 +3,569 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Publications | Najwa Alshehri</title>
+
+  <title>Publications</title>
 
   <style>
     body {
-      font-family: Arial, Helvetica, sans-serif;
-      background: #ffffff;
-      color: #1f2933;
       margin: 0;
-      padding: 32px;
-      line-height: 1.6;
+      padding: 20px 28px;
+      background: #ffffff;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #263746;
+      line-height: 1.5;
     }
 
-    .container {
-      max-width: 1000px;
+    #publications {
+      max-width: 1050px;
       margin: 0 auto;
     }
 
-    h1 {
-      font-size: 2rem;
-      margin-bottom: 8px;
-      color: #172b3a;
-    }
-
-    .intro {
-      margin-bottom: 28px;
-      color: #5b6570;
-      font-size: 1rem;
-    }
-
-    a {
-      color: #2f6f6d;
-    }
-
-    .bibbase_group {
-      margin-top: 30px;
-    }
-
-    .bibbase_group > div:first-child {
-      font-size: 1.35rem;
-      font-weight: 700;
-      color: #172b3a;
-      margin-bottom: 12px;
-      border-bottom: 1px solid #dfe3e6;
-      padding-bottom: 6px;
-    }
-
-    .bibbase_paper {
-      margin-bottom: 22px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid #eeeeee;
-    }
-
-    .bibbase_paper_title {
+    .year {
+      font-size: 1.45rem;
       font-weight: 600;
+      background: #eeeeee;
+      padding: 10px 18px;
+      margin-top: 24px;
+      margin-bottom: 6px;
+      border-radius: 3px;
     }
 
-    .bibbase_icon_text {
+    .publication {
+      padding: 14px 18px 17px 18px;
+      border-bottom: 1px solid #e5e7e9;
+    }
+
+    .title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .details {
+      font-size: 0.97rem;
+      line-height: 1.55;
+    }
+
+    .journal {
+      font-style: italic;
+    }
+
+    .links {
+      margin-top: 7px;
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .links a,
+    .bibtex-button {
+      color: #2f6f6d;
       font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+      font-family: inherit;
     }
 
-    #bibbase_header {
+    .links a:hover,
+    .bibtex-button:hover {
+      text-decoration: underline;
+    }
+
+    .bibtex-box {
       display: none;
+      margin-top: 10px;
+      padding: 12px;
+      background: #f6f7f7;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: 0.82rem;
+      color: #333333;
+    }
+
+    .status {
+      padding: 20px;
+      text-align: center;
+      color: #66717b;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 12px;
+      }
+
+      .publication {
+        padding-left: 8px;
+        padding-right: 8px;
+      }
+
+      .year {
+        font-size: 1.2rem;
+      }
     }
   </style>
 </head>
 
 <body>
-  <div class="container">
 
-    <script
-      src="https://bibbase.org/show?bib=https%3A%2F%2Fraw.githubusercontent.com%2FNajwaalshehri%2Fpublications%2Fmain%2Fpublications.bib&group0=year&sort=-year&commas=true&jsonp=1">
-    </script>
+<div id="publications">
+  <div class="status">Loading publications...</div>
+</div>
 
-  </div>
+<script>
+async function loadBib() {
+  const response = await fetch("publications.bib");
+
+  if (!response.ok) {
+    throw new Error("Could not load publications.bib");
+  }
+
+  return await response.text();
+}
+
+
+/* ----------------------------------------------------
+   Simple BibTeX parser
+---------------------------------------------------- */
+
+function parseBibTeX(text) {
+  const entries = [];
+  let pos = 0;
+
+  while (true) {
+    const at = text.indexOf("@", pos);
+    if (at === -1) break;
+
+    const typeStart = at + 1;
+    const braceStart = text.indexOf("{", typeStart);
+
+    if (braceStart === -1) break;
+
+    const type = text
+      .slice(typeStart, braceStart)
+      .trim()
+      .toLowerCase();
+
+    let depth = 1;
+    let i = braceStart + 1;
+
+    while (i < text.length && depth > 0) {
+      if (text[i] === "{") depth++;
+      else if (text[i] === "}") depth--;
+      i++;
+    }
+
+    const fullEntry = text.slice(at, i);
+    const content = text.slice(braceStart + 1, i - 1);
+
+    const firstComma = content.indexOf(",");
+
+    if (firstComma !== -1) {
+      const key = content.slice(0, firstComma).trim();
+      const fieldText = content.slice(firstComma + 1);
+
+      entries.push({
+        type,
+        key,
+        fields: parseFields(fieldText),
+        bibtex: fullEntry.trim()
+      });
+    }
+
+    pos = i;
+  }
+
+  return entries;
+}
+
+
+function parseFields(text) {
+  const fields = {};
+  let i = 0;
+
+  while (i < text.length) {
+
+    while (
+      i < text.length &&
+      (/\s|,/.test(text[i]))
+    ) {
+      i++;
+    }
+
+    let name = "";
+
+    while (
+      i < text.length &&
+      /[A-Za-z0-9_-]/.test(text[i])
+    ) {
+      name += text[i];
+      i++;
+    }
+
+    name = name.toLowerCase();
+
+    while (i < text.length && /\s/.test(text[i])) i++;
+
+    if (text[i] !== "=") {
+      i++;
+      continue;
+    }
+
+    i++;
+
+    while (i < text.length && /\s/.test(text[i])) i++;
+
+    let value = "";
+
+    if (text[i] === "{") {
+
+      i++;
+      let depth = 1;
+
+      while (i < text.length && depth > 0) {
+
+        if (text[i] === "{") {
+          depth++;
+
+          if (depth > 1) {
+            value += text[i];
+          }
+
+        } else if (text[i] === "}") {
+
+          depth--;
+
+          if (depth > 0) {
+            value += text[i];
+          }
+
+        } else {
+          value += text[i];
+        }
+
+        i++;
+      }
+
+    } else if (text[i] === '"') {
+
+      i++;
+
+      while (i < text.length && text[i] !== '"') {
+        value += text[i];
+        i++;
+      }
+
+      i++;
+
+    } else {
+
+      while (
+        i < text.length &&
+        text[i] !== ","
+      ) {
+        value += text[i];
+        i++;
+      }
+    }
+
+    fields[name] = cleanLatex(value.trim());
+  }
+
+  return fields;
+}
+
+
+/* ----------------------------------------------------
+   Minor cleanup for display
+---------------------------------------------------- */
+
+function cleanLatex(text) {
+  if (!text) return "";
+
+  return text
+    .replace(/\\&/g, "&")
+    .replace(/--/g, "–")
+    .replace(/\{\\'a\}/g, "á")
+    .replace(/\{\\'i\}/g, "í")
+    .replace(/\{\\'e\}/g, "é")
+    .replace(/[{}]/g, "");
+}
+
+
+/* ----------------------------------------------------
+   Author formatting
+---------------------------------------------------- */
+
+function formatAuthors(authorString) {
+
+  if (!authorString) return "";
+
+  return authorString
+    .split(/\s+and\s+/)
+    .map(author => {
+
+      const pieces = author.split(",");
+
+      if (pieces.length >= 2) {
+        const last = pieces[0].trim();
+        const first = pieces[1].trim();
+
+        const initials = first
+          .split(/\s+/)
+          .map(n => n.charAt(0) + ".")
+          .join(" ");
+
+        return `${last}, ${initials}`;
+      }
+
+      return author.trim();
+    })
+    .join(", ");
+}
+
+
+/* ----------------------------------------------------
+   Venue formatting
+---------------------------------------------------- */
+
+function getVenue(entry) {
+
+  const f = entry.fields;
+
+  if (entry.type === "article") {
+    return f.journal || "";
+  }
+
+  if (entry.type === "inproceedings") {
+    return f.booktitle || "";
+  }
+
+  if (entry.type === "phdthesis") {
+    return "Ph.D. Thesis";
+  }
+
+  return "";
+}
+
+
+/* ----------------------------------------------------
+   Render
+---------------------------------------------------- */
+
+function render(entries) {
+
+  const container = document.getElementById("publications");
+
+  entries.sort((a, b) => {
+    const yearA = parseInt(a.fields.year || "0");
+    const yearB = parseInt(b.fields.year || "0");
+
+    if (yearA !== yearB) {
+      return yearB - yearA;
+    }
+
+    return (a.fields.title || "")
+      .localeCompare(b.fields.title || "");
+  });
+
+
+  const groups = {};
+
+  entries.forEach(entry => {
+
+    const year = entry.fields.year || "Other";
+
+    if (!groups[year]) {
+      groups[year] = [];
+    }
+
+    groups[year].push(entry);
+  });
+
+
+  container.innerHTML = "";
+
+
+  Object.keys(groups)
+    .sort((a, b) => Number(b) - Number(a))
+    .forEach(year => {
+
+      const yearHeading = document.createElement("div");
+      yearHeading.className = "year";
+      yearHeading.textContent =
+        `${year} (${groups[year].length})`;
+
+      container.appendChild(yearHeading);
+
+
+      groups[year].forEach((entry, index) => {
+
+        const f = entry.fields;
+
+        const item = document.createElement("div");
+        item.className = "publication";
+
+
+        const title = document.createElement("div");
+        title.className = "title";
+        title.textContent = f.title || "";
+
+        item.appendChild(title);
+
+
+        const details = document.createElement("div");
+        details.className = "details";
+
+
+        let html = "";
+
+        const authors = formatAuthors(f.author);
+
+        if (authors) {
+          html += authors;
+        }
+
+
+        const venue = getVenue(entry);
+
+        if (venue) {
+
+          html += `. <span class="journal">${venue}</span>`;
+
+        }
+
+
+        if (f.volume) {
+
+          html += `, ${f.volume}`;
+
+          if (f.number) {
+            html += `(${f.number})`;
+          }
+        }
+
+
+        if (f.pages) {
+          html += `: ${f.pages}`;
+        }
+
+
+        if (entry.type === "phdthesis" && f.school) {
+          html += `, ${f.school}`;
+        }
+
+
+        if (f.year) {
+          html += `, ${f.year}`;
+        }
+
+
+        html += ".";
+
+        details.innerHTML = html;
+
+        item.appendChild(details);
+
+
+        /* Links */
+
+        const links = document.createElement("div");
+        links.className = "links";
+
+
+        if (f.doi) {
+
+          const doi = document.createElement("a");
+
+          doi.href =
+            "https://doi.org/" + f.doi;
+
+          doi.target = "_blank";
+          doi.rel = "noopener";
+
+          doi.textContent = "doi";
+
+          links.appendChild(doi);
+        }
+
+
+        if (f.url) {
+
+          const link = document.createElement("a");
+
+          link.href = f.url;
+          link.target = "_blank";
+          link.rel = "noopener";
+
+          link.textContent = "link";
+
+          links.appendChild(link);
+        }
+
+
+        const button = document.createElement("button");
+
+        button.className = "bibtex-button";
+        button.textContent = "bibtex ▾";
+
+        links.appendChild(button);
+
+
+        item.appendChild(links);
+
+
+        const bibbox = document.createElement("div");
+
+        bibbox.className = "bibtex-box";
+        bibbox.textContent = entry.bibtex;
+
+        item.appendChild(bibbox);
+
+
+        button.addEventListener("click", () => {
+
+          const visible =
+            bibbox.style.display === "block";
+
+          bibbox.style.display =
+            visible ? "none" : "block";
+
+          button.textContent =
+            visible ? "bibtex ▾" : "bibtex ▴";
+        });
+
+
+        container.appendChild(item);
+      });
+    });
+}
+
+
+/* ----------------------------------------------------
+   Start
+---------------------------------------------------- */
+
+loadBib()
+  .then(parseBibTeX)
+  .then(render)
+  .catch(error => {
+
+    document.getElementById("publications").innerHTML =
+      `<div class="status">
+         Unable to load publications.
+       </div>`;
+
+    console.error(error);
+  });
+
+</script>
+
 </body>
 </html>
